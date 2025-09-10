@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜数字游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        danger: '#EF4444',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .game-container {
+                @apply max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8 transition-all duration-300;
+            }
+            .btn {
+                @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90 focus:ring-primary/50;
+            }
+            .input-field {
+                @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
+    <div class="game-container">
+        <div class="text-center mb-6">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-gray-800 mb-2">
+                <i class="fa fa-gamepad text-primary mr-2"></i>猜数字游戏
+            </h1>
+            <p class="text-gray-600">挑战你的运气和智慧！</p>
+        </div>
+        
+        <div id="game-info" class="mb-6 text-center">
+            <p class="text-gray-700 mb-2">我已经想好了一个1到100之间的数字</p>
+            <p class="text-gray-700">你有 <span id="attempts-left" class="font-bold text-primary">10</span> 次机会猜出它</p>
+        </div>
+        
+        <div id="game-message" class="mb-4 p-4 rounded-lg bg-blue-50 text-blue-800 hidden">
+            请开始你的第一次猜测！
+        </div>
+        
+        <form id="guess-form" class="mb-6">
+            <div class="flex gap-3">
+                <input 
+                    type="number" 
+                    id="guess-input" 
+                    min="1" 
+                    max="100" 
+                    placeholder="输入1-100之间的数字" 
+                    class="input-field"
+                    required
+                >
+                <button type="submit" class="btn btn-primary whitespace-nowrap">
+                    <i class="fa fa-check mr-1"></i> 猜一猜
+                </button>
+            </div>
+        </form>
+        
+        <div id="guess-history" class="mb-6">
+            <h3 class="font-semibold text-gray-700 mb-2">猜测历史：</h3>
+            <ul id="history-list" class="space-y-1 max-h-32 overflow-y-auto"></ul>
+        </div>
+        
+        <div id="game-over" class="hidden text-center p-4 rounded-lg">
+            <h3 id="game-result" class="text-xl font-bold mb-3"></h3>
+            <button id="restart-btn" class="btn btn-primary">
+                <i class="fa fa-refresh mr-1"></i> 再来一局
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏核心逻辑
+        document.addEventListener('DOMContentLoaded', () => {
+            // 游戏变量
+            let secretNumber = generateRandomNumber();
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            // DOM元素
+            const guessForm = document.getElementById('guess-form');
+            const guessInput = document.getElementById('guess-input');
+            const gameMessage = document.getElementById('game-message');
+            const attemptsLeftEl = document.getElementById('attempts-left');
+            const historyList = document.getElementById('history-list');
+            const gameOverEl = document.getElementById('game-over');
+            const gameResultEl = document.getElementById('game-result');
+            const restartBtn = document.getElementById('restart-btn');
+            const gameInfo = document.getElementById('game-info');
+            
+            // 初始化游戏
+            showMessage('请开始你的第一次猜测！', 'blue');
+            
+            // 生成1-100之间的随机数
+            function generateRandomNumber() {
+                return Math.floor(Math.random() * 100) + 1;
+            }
+            
+            // 显示消息
+            function showMessage(text, type = 'blue') {
+                gameMessage.textContent = text;
+                gameMessage.classList.remove('hidden', 'bg-blue-50', 'text-blue-800', 
+                                          'bg-green-50', 'text-green-800', 
+                                          'bg-yellow-50', 'text-yellow-800',
+                                          'bg-red-50', 'text-red-800');
+                
+                switch(type) {
+                    case 'blue':
+                        gameMessage.classList.add('bg-blue-50', 'text-blue-800');
+                        break;
+                    case 'green':
+                        gameMessage.classList.add('bg-green-50', 'text-green-800');
+                        break;
+                    case 'yellow':
+                        gameMessage.classList.add('bg-yellow-50', 'text-yellow-800');
+                        break;
+                    case 'red':
+                        gameMessage.classList.add('bg-red-50', 'text-red-800');
+                        break;
+                }
+            }
+            
+            // 添加猜测历史
+            function addToHistory(guess, result) {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-2 rounded border';
+                
+                let resultText, resultClass;
+                switch(result) {
+                    case 'high':
+                        resultText = '太大了';
+                        resultClass = 'text-red-600';
+                        break;
+                    case 'low':
+                        resultText = '太小了';
+                        resultClass = 'text-yellow-600';
+                        break;
+                    case 'correct':
+                        resultText = '猜对了！';
+                        resultClass = 'text-green-600 font-bold';
+                        break;
+                }
+                
+                li.innerHTML = `
+                    <span>你猜的是: <strong>${guess}</strong></span>
+                    <span class="${resultClass}">${resultText}</span>
+                `;
+                
+                historyList.prepend(li); // 添加到列表开头
+            }
+            
+            // 检查猜测结果
+            function checkGuess(guess) {
+                attempts++;
+                
+                if (guess < secretNumber) {
+                    addToHistory(guess, 'low');
+                    showMessage('太小了！再试一次', 'yellow');
+                    return false;
+                } else if (guess > secretNumber) {
+                    addToHistory(guess, 'high');
+                    showMessage('太大了！再试一次', 'red');
+                    return false;
+                } else {
+                    addToHistory(guess, 'correct');
+                    showMessage('恭喜你，猜对了！', 'green');
+                    return true;
+                }
+            }
+            
+            // 游戏结束
+            function endGame(isWon) {
+                guessForm.classList.add('hidden');
+                
+                if (isWon) {
+                    gameResultEl.textContent = `恭喜你赢了！你用了${attempts}次猜出了正确答案`;
+                    gameResultEl.className = 'text-xl font-bold mb-3 text-green-600';
+                } else {
+                    gameResultEl.textContent = `游戏结束！正确答案是${secretNumber}`;
+                    gameResultEl.className = 'text-xl font-bold mb-3 text-red-600';
+                }
+                
+                gameOverEl.classList.remove('hidden');
+            }
+            
+            // 重置游戏
+            function resetGame() {
+                secretNumber = generateRandomNumber();
+                attempts = 0;
+                attemptsLeftEl.textContent = maxAttempts;
+                guessInput.value = '';
+                historyList.innerHTML = '';
+                
+                gameOverEl.classList.add('hidden');
+                guessForm.classList.remove('hidden');
+                gameInfo.classList.remove('hidden');
+                
+                showMessage('请开始你的第一次猜测！', 'blue');
+            }
+            
+            // 表单提交事件
+            guessForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const guess = parseInt(guessInput.value);
+                
+                // 验证输入
+                if (isNaN(guess) || guess < 1 || guess > 100) {
+                    showMessage('请输入1到100之间的有效数字', 'red');
+                    return;
+                }
+                
+                // 检查猜测
+                const isCorrect = checkGuess(guess);
+                
+                // 更新剩余次数
+                const remaining = maxAttempts - attempts;
+                attemptsLeftEl.textContent = remaining;
+                
+                // 清空输入框
+                guessInput.value = '';
+                guessInput.focus();
+                
+                // 检查游戏是否结束
+                if (isCorrect) {
+                    endGame(true);
+                } else if (remaining <= 0) {
+                    endGame(false);
+                }
+            });
+            
+            // 重启游戏
+            restartBtn.addEventListener('click', resetGame);
+            
+            // 自动聚焦输入框
+            guessInput.focus();
+        });
+    </script>
+</body>
+</html>
+    
